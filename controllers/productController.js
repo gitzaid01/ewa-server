@@ -102,3 +102,48 @@ export const getProducts = async (req, res) => {
     });
   }
 };
+
+
+export const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    // Check slug only if it's being changed
+    if (req.body.slug && req.body.slug !== product.slug) {
+      const slugExists = await Product.findOne({
+        slug: req.body.slug,
+      });
+
+      if (slugExists) {
+        return res.status(400).json({
+          success: false,
+          message: "Slug already exists",
+        });
+      }
+    }
+
+    Object.assign(product, req.body);
+
+    await product.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Product updated successfully",
+      product,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
