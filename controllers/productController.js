@@ -45,3 +45,60 @@ export const addProduct = async (req, res) => {
     });
   }
 };
+
+export const getProducts = async (req, res) => {
+  try {
+    const {
+      search,
+      category,
+      featured,
+      page = 1,
+      limit = 10,
+    } = req.query;
+
+    const filter = {};
+
+    // Search by product name
+    if (search) {
+      filter.name = {
+        $regex: search,
+        $options: "i",
+      };
+    }
+
+    // Filter by category
+    if (category) {
+      filter.category = category;
+    }
+
+    // Filter featured products
+    if (featured !== undefined) {
+      filter.isFeatured = featured === "true";
+    }
+
+    const currentPage = Number(page);
+    const pageLimit = Number(limit);
+
+    const skip = (currentPage - 1) * pageLimit;
+
+    const products = await Product.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageLimit);
+
+    const totalProducts = await Product.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      totalProducts,
+      currentPage,
+      totalPages: Math.ceil(totalProducts / pageLimit),
+      products,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
