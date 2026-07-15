@@ -1,10 +1,10 @@
 import Product from "../modals/ProductModel.js";
+import slugify from "slugify";
 
 export const addProduct = async (req, res) => {
   try {
     const {
       name,
-      slug,
       category,
       description,
       image,
@@ -13,14 +13,23 @@ export const addProduct = async (req, res) => {
       isFeatured,
     } = req.body;
 
-    const productExists = await Product.findOne({ slug });
+    // Generate slug
+    let slug = slugify(name, {
+      lower: true,
+      strict: true,
+      trim: true,
+    });
 
-    if (productExists) {
-      return res.status(400).json({
-        success: false,
-        message: "Product already exists",
-      });
+    // Ensure slug is unique
+    let count = 1;
+    let tempSlug = slug;
+
+    while (await Product.findOne({ slug: tempSlug })) {
+      tempSlug = `${slug}-${count}`;
+      count++;
     }
+
+    slug = tempSlug;
 
     const product = await Product.create({
       name,
@@ -117,18 +126,28 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // Check slug only if it's being changed
-    if (req.body.slug && req.body.slug !== product.slug) {
-      const slugExists = await Product.findOne({
-        slug: req.body.slug,
+    // If the name changes, regenerate the slug
+    if (req.body.name && req.body.name !== product.name) {
+      let slug = slugify(req.body.name, {
+        lower: true,
+        strict: true,
+        trim: true,
       });
 
-      if (slugExists) {
-        return res.status(400).json({
-          success: false,
-          message: "Slug already exists",
-        });
+      let count = 1;
+      let tempSlug = slug;
+
+      while (
+        await Product.findOne({
+          slug: tempSlug,
+          _id: { $ne: product._id },
+        })
+      ) {
+        tempSlug = `${slug}-${count}`;
+        count++;
       }
+
+      req.body.slug = tempSlug;
     }
 
     Object.assign(product, req.body);
@@ -165,6 +184,34 @@ export const getProductById = async (req, res) => {
     res.status(200).json({
       success: true,
       product,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+export const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const product = await Product.findById(id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    await product.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: "Product deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
